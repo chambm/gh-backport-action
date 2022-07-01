@@ -50,7 +50,7 @@ def _get_pr_number(event_dict: typing.Dict) -> int:
 def git_setup(github_token):
     repo = os.getenv("GITHUB_REPOSITORY")
     actor = os.getenv("GITHUB_ACTOR")
-    print("actor: %s" % actor)
+    git("config", "--global", "--add", "safe.directory", "/github/workspace")
     git(
         "remote",
         "set-url",
