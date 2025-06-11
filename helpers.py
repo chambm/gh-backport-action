@@ -107,5 +107,6 @@ def github_get_commits_in_pr(pr_number: int, gh_token: str) -> typing.Any:
     response.raise_for_status()
     commits = []
     for commit in response.json():
-        commits.append(commit["sha"])
+        if len(commit["parents"]) == 1:
+            commits.append(commit["sha"])
     return commits
