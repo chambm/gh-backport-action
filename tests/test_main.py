@@ -251,3 +251,123 @@ class TestBackportIntegration:
         assert f"#{pr_number}" in backport_pr["title"]
         assert target_branch in backport_pr["title"]
         assert f"Test PR for backport {test_id}" in backport_pr["title"]
+
+    @pytest.mark.skipif(not is_integration_mode(), reason="Integration test requires TEST_GITHUB_TOKEN")
+    def test_backport_with_merge_commit(self, github_env, github_token, github_api, tmp_path):
+        """Test backport workflow when PR contains a merge commit from updating the feature branch.
+
+        This tests the scenario where a developer merges main into their feature branch
+        to get the latest changes. The merge commit should be skipped during cherry-pick.
+        """
+        import requests
+        test_id = uuid.uuid4().hex[:8]
+
+        feature_branch = f"test-merge-bp-{test_id}"
+        target_branch = f"test-target-bp-{test_id}"
+
+        # 1. Create target branch (where we'll backport to)
+        github_api.create_branch(target_branch, from_branch="main")
+
+        # 2. Create feature branch from main
+        github_api.create_branch(feature_branch, from_branch="main")
+
+        # 3. Make a commit on main (simulating main advancing)
+        github_api.create_commit("main", f"main-{test_id}.txt", "main content", f"Main commit {test_id}")
+
+        # 4. Make a commit on feature branch
+        github_api.create_commit(
+            feature_branch, f"feature1-{test_id}.txt", "feature content 1", f"Feature commit 1 {test_id}"
+        )
+
+        # 5. Merge main into feature branch (creates merge commit with 2 parents)
+        github_api.merge_branch(
+            target_branch=feature_branch,
+            source_branch="main",
+            message=f"Merge main into {feature_branch}",
+        )
+
+        # 6. Make another commit on feature branch after merge
+        github_api.create_commit(
+            feature_branch, f"feature2-{test_id}.txt", "feature content 2", f"Feature commit 2 {test_id}"
+        )
+
+        # 7. Create and merge PR (using merge commit method to preserve history)
+        pr = github_api.create_pull_request(
+            title=f"Test PR with merge commit {test_id}",
+            head=feature_branch,
+            base="main",
+            body="Integration test PR with merge commit",
+        )
+        pr_number = pr["number"]
+
+        merge_resp = requests.put(
+            f"{API_URL}/repos/{TEST_REPO}/pulls/{pr_number}/merge",
+            headers=github_api.headers,
+            json={"merge_method": "merge"},  # Use merge to preserve commits
+        )
+        merge_resp.raise_for_status()
+
+        # 8. Create event file
+        event_data = {
+            "pull_request": {
+                "number": pr_number,
+                "title": f"Test PR with merge commit {test_id}",
+                "base": {"ref": "main"},
+                "head": {"ref": feature_branch},
+            }
+        }
+        event_file = tmp_path / "event.json"
+        event_file.write_text(json.dumps(event_data))
+
+        # 9. Clone the test repo
+        repo_dir = tmp_path / "repo"
+        subprocess.run(
+            ["git", "clone", f"https://x-access-token:{github_token}@github.com/{TEST_REPO}.git", str(repo_dir)],
+            check=True,
+            capture_output=True,
+        )
+
+        # 10. Run the backport
+        env = os.environ.copy()
+        env["GITHUB_EVENT_PATH"] = str(event_file)
+        env["GITHUB_REPOSITORY"] = TEST_REPO
+        env["GITHUB_API_URL"] = API_URL
+        env["GITHUB_ACTOR"] = "test-actor"
+
+        main_py_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
+
+        result = subprocess.run(
+            [
+                "python",
+                main_py_path,
+                target_branch,
+                "Backport #{pr_number} ({original_title}) to {pr_branch}",
+                "Automated backport of #{pr_number}",
+                github_token,
+            ],
+            cwd=str(repo_dir),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        print(f"STDOUT: {result.stdout}")
+        print(f"STDERR: {result.stderr}")
+
+        # 11. Verify success - merge commit should have been skipped
+        assert result.returncode == 0, f"Backport failed (merge commit may not have been skipped): {result.stderr}"
+
+        # 12. Find and verify the backport PR
+        prs = github_api.get_pull_requests(state="open", base=target_branch)
+        backport_prs = [p for p in prs if "backport" in p["head"]["ref"].lower()]
+
+        assert len(backport_prs) == 1, f"Expected 1 backport PR, found {len(backport_prs)}"
+        backport_pr = backport_prs[0]
+
+        # Track for cleanup
+        github_api.created_prs.append(backport_pr["number"])
+        github_api.created_branches.append(backport_pr["head"]["ref"])
+
+        # Verify PR title includes the original title
+        assert f"#{pr_number}" in backport_pr["title"]
+        assert f"Test PR with merge commit {test_id}" in backport_pr["title"]
