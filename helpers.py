@@ -47,6 +47,13 @@ def _get_pr_number(event_dict: typing.Dict) -> int:
         raise RuntimeError("pull_request.number not found in GITHUB_EVENT_PATH")
 
 
+def _get_pr_title(event_dict: typing.Dict) -> str:
+    try:
+        return event_dict["pull_request"]["title"]
+    except Exception:
+        raise RuntimeError("pull_request.title not found in GITHUB_EVENT_PATH")
+
+
 def git_setup(github_token):
     repo = os.getenv("GITHUB_REPOSITORY")
     actor = os.getenv("GITHUB_ACTOR")
