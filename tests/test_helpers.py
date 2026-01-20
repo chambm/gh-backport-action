@@ -271,6 +271,61 @@ class TestGitHubAPIIntegration:
         assert all(isinstance(c, str) and len(c) == 40 for c in commits)
 
     @pytest.mark.skipif(not is_integration_mode(), reason="Integration test requires TEST_GITHUB_TOKEN")
+    def test_merge_commits_are_filtered_out(self, github_env, github_token, github_api):
+        """Test that merge commits from updating a feature branch are skipped.
+
+        This simulates the scenario where a developer merges main into their feature
+        branch to get the latest changes before their PR is merged. The merge commit
+        should be filtered out when fetching commits to cherry-pick.
+        """
+        import uuid
+        test_id = uuid.uuid4().hex[:8]
+        feature_branch = f"test-merge-{test_id}"
+
+        # 1. Create feature branch from main
+        github_api.create_branch(feature_branch, from_branch="main")
+
+        # 2. Make a commit on main (simulating main advancing)
+        main_commit = github_api.create_commit("main", f"main-{test_id}.txt", "main content", "Commit on main")
+
+        # 3. Make a commit on feature branch (before merge)
+        feature_commit_1 = github_api.create_commit(
+            feature_branch, f"feature1-{test_id}.txt", "feature content 1", "Feature commit 1"
+        )
+
+        # 4. Merge main into feature branch (creates merge commit with 2 parents)
+        merge_commit = github_api.merge_branch(
+            target_branch=feature_branch,
+            source_branch="main",
+            message=f"Merge main into {feature_branch}",
+        )
+
+        # 5. Make another commit on feature branch (after merge)
+        feature_commit_2 = github_api.create_commit(
+            feature_branch, f"feature2-{test_id}.txt", "feature content 2", "Feature commit 2"
+        )
+
+        # 6. Create a PR
+        pr = github_api.create_pull_request(
+            title=f"Test PR with merge commit {test_id}",
+            head=feature_branch,
+            base="main",
+        )
+
+        # 7. Fetch commits using our function - merge commit should be filtered out
+        commits = github_get_commits_in_pr(pr["number"], github_token)
+
+        # Verify merge commit is NOT in the list
+        assert merge_commit not in commits, "Merge commit should be filtered out"
+
+        # Verify we got the feature commits (but not the main commit since it's already in main)
+        # The exact commits returned depend on how GitHub computes the PR diff
+        assert len(commits) >= 2, f"Expected at least 2 commits, got {len(commits)}"
+
+        # All returned commits should have exactly 1 parent (no merge commits)
+        # This is implicitly verified by the filtering in github_get_commits_in_pr
+
+    @pytest.mark.skipif(not is_integration_mode(), reason="Integration test requires TEST_GITHUB_TOKEN")
     def test_open_and_verify_pull_request(self, github_env, github_token, github_api):
         """Test creating a real PR via the API."""
         import uuid

@@ -90,6 +90,44 @@ class GitHubAPIHelper:
         resp.raise_for_status()
         return new_commit_sha
 
+    def merge_branch(self, target_branch, source_branch, message="Merge branch"):
+        """Merge source_branch into target_branch, creating a merge commit with two parents."""
+        # Get the SHA of both branches
+        resp = requests.get(f"{self.api_base}/git/ref/heads/{target_branch}", headers=self.headers)
+        resp.raise_for_status()
+        target_sha = resp.json()["object"]["sha"]
+
+        resp = requests.get(f"{self.api_base}/git/ref/heads/{source_branch}", headers=self.headers)
+        resp.raise_for_status()
+        source_sha = resp.json()["object"]["sha"]
+
+        # Get the tree from source branch (simulating merge taking source's tree)
+        resp = requests.get(f"{self.api_base}/git/commits/{source_sha}", headers=self.headers)
+        resp.raise_for_status()
+        source_tree_sha = resp.json()["tree"]["sha"]
+
+        # Create a merge commit with two parents
+        resp = requests.post(
+            f"{self.api_base}/git/commits",
+            headers=self.headers,
+            json={
+                "message": message,
+                "tree": source_tree_sha,
+                "parents": [target_sha, source_sha],
+            },
+        )
+        resp.raise_for_status()
+        merge_commit_sha = resp.json()["sha"]
+
+        # Update the target branch to point to the merge commit
+        resp = requests.patch(
+            f"{self.api_base}/git/refs/heads/{target_branch}",
+            headers=self.headers,
+            json={"sha": merge_commit_sha},
+        )
+        resp.raise_for_status()
+        return merge_commit_sha
+
     def create_pull_request(self, title, head, base, body=""):
         """Create a pull request."""
         resp = requests.post(
