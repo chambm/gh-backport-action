@@ -79,10 +79,11 @@ class TestEntrypoint:
     """Tests for the entrypoint function."""
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.git")
     @patch("main.github_open_pull_request")
     @patch("main.backport_commits")
     @patch("main.github_get_commits_in_pr")
-    def test_successful_backport(self, mock_get_commits, mock_backport, mock_open_pr, sample_event):
+    def test_successful_backport(self, mock_get_commits, mock_backport, mock_open_pr, mock_git, sample_event):
         mock_get_commits.return_value = ["abc123", "def456"]
         mock_backport.return_value = "backport-main-031524-release"
 
@@ -94,6 +95,8 @@ class TestEntrypoint:
             gh_token="test-token",
         )
 
+        mock_git.assert_any_call("fetch", "--no-tags", "origin", "+refs/heads/release:refs/remotes/origin/release")
+        mock_git.assert_any_call("fetch", "--no-tags", "origin", "+refs/pull/42/head")
         mock_get_commits.assert_called_once_with(pr_number=42, gh_token="test-token")
         mock_backport.assert_called_once_with(["abc123", "def456"], "main", "release", 42)
         mock_open_pr.assert_called_once_with(
@@ -105,10 +108,11 @@ class TestEntrypoint:
         )
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.git")
     @patch("main.github_open_pull_request")
     @patch("main.backport_commits")
     @patch("main.github_get_commits_in_pr")
-    def test_template_variables_substituted(self, mock_get_commits, mock_backport, mock_open_pr, sample_event):
+    def test_template_variables_substituted(self, mock_get_commits, mock_backport, mock_open_pr, mock_git, sample_event):
         mock_get_commits.return_value = ["abc123"]
         mock_backport.return_value = "new-branch"
 
@@ -126,10 +130,11 @@ class TestEntrypoint:
         assert call_kwargs["body"] == "From main, PR #42: Fix critical bug in login"
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.git")
     @patch("main.github_open_pull_request")
     @patch("main.backport_commits")
     @patch("main.github_get_commits_in_pr")
-    def test_handles_empty_commits_list(self, mock_get_commits, mock_backport, mock_open_pr, sample_event):
+    def test_handles_empty_commits_list(self, mock_get_commits, mock_backport, mock_open_pr, mock_git, sample_event):
         mock_get_commits.return_value = []
         mock_backport.return_value = "new-branch"
 
@@ -154,12 +159,13 @@ class TestPrNumberInputFallback:
     """
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.git")
     @patch("main.github_open_pull_request")
     @patch("main.backport_commits")
     @patch("main.github_get_commits_in_pr")
     @patch("main.github_get_pr")
     def test_fetches_pr_when_event_has_no_pull_request(
-        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr
+        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr, mock_git
     ):
         """When event dict has no pull_request and pr_number_input is provided,
         the action should fetch PR data from the API and proceed normally."""
@@ -196,12 +202,13 @@ class TestPrNumberInputFallback:
         mock_backport.assert_called_once()
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.git")
     @patch("main.github_open_pull_request")
     @patch("main.backport_commits")
     @patch("main.github_get_commits_in_pr")
     @patch("main.github_get_pr")
     def test_skips_fetch_when_event_has_pull_request(
-        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr, sample_event
+        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr, mock_git, sample_event
     ):
         """When event dict already has pull_request, pr_number_input should be ignored."""
         mock_get_commits.return_value = ["aaa111"]
