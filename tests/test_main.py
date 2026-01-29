@@ -95,8 +95,8 @@ class TestEntrypoint:
             gh_token="test-token",
         )
 
-        mock_git.assert_any_call("fetch", "--no-tags", "origin", "+refs/heads/release:refs/remotes/origin/release")
-        mock_git.assert_any_call("fetch", "--no-tags", "origin", "+refs/pull/42/head")
+        mock_git.assert_any_call("fetch", "--no-tags", "--depth=1", "origin", "+refs/heads/release:refs/remotes/origin/release")
+        mock_git.assert_any_call("fetch", "--no-tags", "--depth=2", "origin", "abc123", "def456")
         mock_get_commits.assert_called_once_with(pr_number=42, gh_token="test-token")
         mock_backport.assert_called_once_with(["abc123", "def456"], "main", "release", 42)
         mock_open_pr.assert_called_once_with(

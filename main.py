@@ -43,11 +43,12 @@ def entrypoint(event_dict, pr_branch, pr_title, pr_body, gh_token):
     pr_number = _get_pr_number(event_dict)
     original_title = _get_pr_title(event_dict)
 
-    print(f"Fetching target branch '{pr_branch}' and PR #{pr_number} refs...")
-    git("fetch", "--no-tags", "origin", f"+refs/heads/{pr_branch}:refs/remotes/origin/{pr_branch}")
-    git("fetch", "--no-tags", "origin", f"+refs/pull/{pr_number}/head")
-
     commits_to_backport = github_get_commits_in_pr(pr_number=pr_number, gh_token=gh_token)
+
+    print(f"Fetching target branch '{pr_branch}' and PR #{pr_number} commits...")
+    git("fetch", "--no-tags", "--depth=1", "origin", f"+refs/heads/{pr_branch}:refs/remotes/origin/{pr_branch}")
+    if commits_to_backport:
+        git("fetch", "--no-tags", "--depth=2", "origin", *commits_to_backport)
 
     print(f"found {len(commits_to_backport)} commits to backport.")
     template_vars = {"pr_branch": pr_branch, "pr_number": pr_number, "base_branch": base_branch, "original_title": original_title}
