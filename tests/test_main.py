@@ -144,6 +144,88 @@ class TestEntrypoint:
         mock_backport.assert_called_once_with([], "main", "release", 42)
 
 
+class TestPrNumberInputFallback:
+    """Tests for the pr_number_input CLI argument fallback path.
+
+    The fallback logic lives in main.py's __main__ block: when pr_number_input is
+    provided and the event dict has no pull_request key, it calls github_get_pr()
+    and injects the result into the event dict before calling entrypoint().
+    These tests simulate that logic directly.
+    """
+
+    @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.github_open_pull_request")
+    @patch("main.backport_commits")
+    @patch("main.github_get_commits_in_pr")
+    @patch("main.github_get_pr")
+    def test_fetches_pr_when_event_has_no_pull_request(
+        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr
+    ):
+        """When event dict has no pull_request and pr_number_input is provided,
+        the action should fetch PR data from the API and proceed normally."""
+        from main import github_get_pr as _unused, entrypoint
+
+        pr_data = {
+            "number": 99,
+            "title": "Some PR",
+            "base": {"ref": "main"},
+            "head": {"ref": "feature/foo"},
+        }
+        mock_get_pr.return_value = pr_data
+        mock_get_commits.return_value = ["aaa111"]
+        mock_backport.return_value = "backport-branch"
+
+        # Simulate workflow_dispatch event (no pull_request key)
+        event_dict = {"action": "completed"}
+        pr_number_input = "99"
+
+        # This mirrors the __main__ fallback logic
+        if pr_number_input and "pull_request" not in event_dict:
+            event_dict["pull_request"] = mock_get_pr(int(pr_number_input), "fake-token")
+
+        entrypoint(
+            event_dict=event_dict,
+            pr_branch="release",
+            pr_title="Backport #{pr_number}",
+            pr_body="Body",
+            gh_token="fake-token",
+        )
+
+        mock_get_pr.assert_called_once_with(99, "fake-token")
+        mock_get_commits.assert_called_once_with(pr_number=99, gh_token="fake-token")
+        mock_backport.assert_called_once()
+
+    @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("main.github_open_pull_request")
+    @patch("main.backport_commits")
+    @patch("main.github_get_commits_in_pr")
+    @patch("main.github_get_pr")
+    def test_skips_fetch_when_event_has_pull_request(
+        self, mock_get_pr, mock_get_commits, mock_backport, mock_open_pr, sample_event
+    ):
+        """When event dict already has pull_request, pr_number_input should be ignored."""
+        mock_get_commits.return_value = ["aaa111"]
+        mock_backport.return_value = "backport-branch"
+
+        pr_number_input = "99"
+
+        # This mirrors the __main__ fallback logic — should NOT call github_get_pr
+        if pr_number_input and "pull_request" not in sample_event:
+            sample_event["pull_request"] = mock_get_pr(int(pr_number_input), "fake-token")
+
+        entrypoint(
+            event_dict=sample_event,
+            pr_branch="release",
+            pr_title="Backport #{pr_number}",
+            pr_body="Body",
+            gh_token="fake-token",
+        )
+
+        mock_get_pr.assert_not_called()
+        # Should use the existing event data (PR #42 from sample_event)
+        mock_get_commits.assert_called_once_with(pr_number=42, gh_token="fake-token")
+
+
 # Integration tests - only run when TEST_GITHUB_TOKEN is set
 class TestBackportIntegration:
     """Integration tests for the full backport workflow."""

@@ -12,6 +12,7 @@ from helpers import (
     _get_pr_title,
     git,
     github_get_commits_in_pr,
+    github_get_pr,
     github_open_pull_request,
     git_setup,
     github_open_issue,
@@ -63,12 +64,18 @@ if __name__ == "__main__":
     parser.add_argument("pr_title", type=str)
     parser.add_argument("pr_body", type=str)
     parser.add_argument("github_token", type=str)
+    parser.add_argument("pr_number_input", type=str, nargs="?", default="")
     github_event_path = os.getenv("GITHUB_EVENT_PATH")
 
     with open(github_event_path, "r") as f:
         github_event = json.load(f)
 
     args = parser.parse_args()
+
+    if args.pr_number_input and "pull_request" not in github_event:
+        print(f"Event file has no pull_request data; fetching PR #{args.pr_number_input} from API.")
+        github_event["pull_request"] = github_get_pr(int(args.pr_number_input), args.github_token)
+
     git_setup(args.github_token)
     try:
         entrypoint(

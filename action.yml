@@ -8,6 +8,10 @@ inputs:
   github_token:
     description: Token for the GitHub API.
     required: true
+  pr_number:
+    description: 'PR number to backport. Required for workflow_dispatch; auto-detected from event data for pull_request triggers.'
+    required: false
+    default: ''
   pr_title:
     description: 'The title template to give the automatically created backport PRs. Supported template variables are: pr_branch, pr_number, base_branch, and original_title'
     required: false
@@ -27,3 +31,4 @@ runs:
     - ${{ inputs.pr_title }}
     - ${{ inputs.pr_body }}
     - ${{ inputs.github_token }}
+    - ${{ inputs.pr_number }}

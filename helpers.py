@@ -107,6 +107,13 @@ def github_open_issue(title: str, body: str, gh_token: str):
     response.raise_for_status()
 
 
+def github_get_pr(pr_number: int, gh_token: str) -> typing.Dict:
+    headers = github_api_headers(gh_token=gh_token)
+    response = requests.get(url=f"{_github_repo_url()}/pulls/{pr_number}", headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+
 def github_get_commits_in_pr(pr_number: int, gh_token: str) -> typing.Any:
     headers = github_api_headers(gh_token=gh_token)
 

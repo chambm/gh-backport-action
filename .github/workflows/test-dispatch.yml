@@ -1,0 +1,30 @@
+name: Test workflow_dispatch backport
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-dispatch-backport:
+    name: Test pr_number input fallback
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run dispatch backport test
+        env:
+          TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TEST_GITHUB_TOKEN" ]; then
+            echo "TEST_GITHUB_TOKEN not set, skipping"
+            exit 0
+          fi
+          python -u tests/test_dispatch_backport.py

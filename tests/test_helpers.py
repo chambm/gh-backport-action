@@ -17,6 +17,7 @@ from helpers import (
     _get_pr_title,
     git_setup,
     github_api_headers,
+    github_get_pr,
     github_get_commits_in_pr,
     github_open_pull_request,
     github_open_issue,
@@ -129,6 +130,33 @@ class TestGitHubApiHeaders:
             "content-type": "application/json",
             "accept": "application/vnd.github.v3+json",
         }
+
+
+class TestGitHubGetPr:
+    """Tests for fetching a PR from the API."""
+
+    @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
+    @patch("helpers.requests.get")
+    @patch.dict("os.environ", {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_API_URL": "https://api.github.com"})
+    def test_returns_pr_json(self, mock_get):
+        pr_data = {
+            "number": 42,
+            "title": "Fix bug",
+            "base": {"ref": "main"},
+            "head": {"ref": "feature/fix"},
+        }
+        mock_response = MagicMock()
+        mock_response.json.return_value = pr_data
+        mock_get.return_value = mock_response
+
+        result = github_get_pr(42, "token")
+
+        assert result == pr_data
+        mock_get.assert_called_once_with(
+            url="https://api.github.com/repos/owner/repo/pulls/42",
+            headers=github_api_headers("token"),
+        )
+        mock_response.raise_for_status.assert_called_once()
 
 
 class TestGitHubGetCommitsInPr:
