@@ -88,7 +88,7 @@ def main():
             env["GITHUB_API_URL"] = API_URL
             env["GITHUB_ACTOR"] = "test-actor"
 
-            main_py = os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py")
+            main_py = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main.py")
 
             print(f"Running main.py with pr_number={pr_number}...")
             result = subprocess.run(
