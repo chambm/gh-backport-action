@@ -29,13 +29,14 @@ class TestBackportCommits:
             commits=["abc123", "def456"],
             initial_name="main",
             to_branch="release",
+            pr_number=42,
         )
 
-        assert result == "backport-main-031524-release"
-        mock_git.assert_any_call("switch", "-c", "backport-main-031524-release", "origin/release")
+        assert result == "backport-main-pr42-031524-release"
+        mock_git.assert_any_call("switch", "-c", "backport-main-pr42-031524-release", "origin/release")
         mock_git.assert_any_call("cherry-pick", "abc123")
         mock_git.assert_any_call("cherry-pick", "def456")
-        mock_git.assert_any_call("push", "-u", "origin", "backport-main-031524-release")
+        mock_git.assert_any_call("push", "-u", "origin", "backport-main-pr42-031524-release")
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
     @patch("main.git")
@@ -47,10 +48,11 @@ class TestBackportCommits:
             commits=["abc123"],
             initial_name="very-long-branch-name-that-exceeds-limit",
             to_branch="release",
+            pr_number=99,
         )
 
         # initial_name is truncated to 15 chars
-        assert result == "backport-very-long-branc-031524-release"
+        assert result == "backport-very-long-branc-pr99-031524-release"
 
     @pytest.mark.skipif(is_integration_mode(), reason="Unit test only")
     @patch("main.git")
@@ -69,6 +71,7 @@ class TestBackportCommits:
                 commits=["abc123"],
                 initial_name="main",
                 to_branch="release",
+                pr_number=1,
             )
 
 
@@ -92,7 +95,7 @@ class TestEntrypoint:
         )
 
         mock_get_commits.assert_called_once_with(pr_number=42, gh_token="test-token")
-        mock_backport.assert_called_once_with(["abc123", "def456"], "main", "release")
+        mock_backport.assert_called_once_with(["abc123", "def456"], "main", "release", 42)
         mock_open_pr.assert_called_once_with(
             title="Cherry pick of #42 (Fix critical bug in login) from main to release",
             head="backport-main-031524-release",
@@ -138,7 +141,7 @@ class TestEntrypoint:
             gh_token="token",
         )
 
-        mock_backport.assert_called_once_with([], "main", "release")
+        mock_backport.assert_called_once_with([], "main", "release", 42)
 
 
 # Integration tests - only run when TEST_GITHUB_TOKEN is set

@@ -18,12 +18,12 @@ from helpers import (
 )
 
 
-def backport_commits(commits: typing.List[str], initial_name: str, to_branch: str):
+def backport_commits(commits: typing.List[str], initial_name: str, to_branch: str, pr_number: int):
     """
     Backport a list of commit on a *new* branch starting from to_branch.
     """
 
-    new_branch = f"backport-{initial_name[:15]}-{datetime.utcnow().strftime('%m%d%y')}-{to_branch}"
+    new_branch = f"backport-{initial_name[:15]}-pr{pr_number}-{datetime.utcnow().strftime('%m%d%y')}-{to_branch}"
     git("switch", "-c", new_branch, "origin/" + to_branch)
     print(f"Switched to future branch: {new_branch}.")
     try:
@@ -47,7 +47,7 @@ def entrypoint(event_dict, pr_branch, pr_title, pr_body, gh_token):
     print(f"found {len(commits_to_backport)} commits to backport.")
     template_vars = {"pr_branch": pr_branch, "pr_number": pr_number, "base_branch": base_branch, "original_title": original_title}
 
-    new_branch = backport_commits(commits_to_backport, base_branch, pr_branch)
+    new_branch = backport_commits(commits_to_backport, base_branch, pr_branch, pr_number)
     github_open_pull_request(
         title=pr_title.format(**template_vars),
         head=new_branch,
